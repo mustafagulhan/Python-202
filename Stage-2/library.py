@@ -115,18 +115,30 @@ class Library:
     def _fetch_book_metadata(isbn: str, *, user_agent: str = DEFAULT_UA) -> Tuple[str, List[str]]:
         base = "https://openlibrary.org"
         url = f"{base}/isbn/{isbn}.json"
-        headers = {"User-Agent": user_agent}
+        headers = {"User-Agent": user_agent, "Accept": "application/json"}
         try:
             resp = httpx.get(url, timeout=10, headers=headers)
         except httpx.RequestError as e:
             raise ValueError("Ağ hatası: Open Library API'ye ulaşılamıyor.") from e
+
+        # 3xx yönlendirmeleri manuel takip
+        if 300 <= resp.status_code < 400:
+            location = resp.headers.get("location") or resp.headers.get("Location")
+            if location:
+                try:
+                    resp = httpx.get(location, timeout=10, headers=headers)
+                except httpx.RequestError as e:
+                    raise ValueError("Ağ hatası: Open Library yönlendirme başarısız.") from e
 
         if resp.status_code == 404:
             raise ValueError("Kitap bulunamadı (404).")
         if resp.status_code >= 400:
             raise ValueError(f"Open Library API hata döndü: {resp.status_code}")
 
-        data = resp.json()
+        try:
+            data = resp.json()
+        except Exception:
+            raise ValueError("Geçersiz API yanıtı: JSON parse edilemedi.")
         title = data.get("title")
         if not title:
             raise ValueError("API yanıtı geçersiz: 'title' alanı yok.")
@@ -140,8 +152,15 @@ class Library:
             # Her yazar için isim verisini çekmeyi dene
             try:
                 a_resp = httpx.get(f"{base}{key}.json", timeout=10, headers=headers)
+                if 300 <= a_resp.status_code < 400:
+                    loc = a_resp.headers.get("location") or a_resp.headers.get("Location")
+                    if loc:
+                        a_resp = httpx.get(loc, timeout=10, headers=headers)
                 if a_resp.status_code == 200:
-                    a_data = a_resp.json()
+                    try:
+                        a_data = a_resp.json()
+                    except Exception:
+                        a_data = {}
                     name = a_data.get("name")
                     if name:
                         authors.append(name)
