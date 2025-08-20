@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "title": "Sefiller",
+    "author": "Victor Hugo",
+    "isbn": "9780453009669"
+  },
+  {
+    "title": "Les misérables",
+    "author": "Victor Hugo",
+    "isbn": "9780140444308"
+  }
+]
